@@ -1,13 +1,28 @@
 <!DOCTYPE html>
 <html>
-<body style="background:#111; display:flex; justify-content:center;">
+<body style="background:#111; display:flex; flex-direction:column; align-items:center;">
+
+<!-- SCORE -->
+<div id="score" style="
+    color:white;
+    font-family:Arial;
+    font-size:32px;
+    margin:10px;
+">Score: 0</div>
+
+<!-- SPEL -->
 <canvas id="game" width="240" height="400"></canvas>
 
 <script>
-// --- GELUIDSENGINE (Web Audio API) ---
+// --- SCORE ---
+let score = 0;
+function updateScore() {
+    document.getElementById("score").innerText = "Score: " + score;
+}
+
+// --- GELUID ---
 const audio = new (window.AudioContext || window.webkitAudioContext)();
 
-// eenvoudige biep-generator
 function playBeep(freq = 440, duration = 0.08, type="square", volume=0.15) {
     const osc = audio.createOscillator();
     const gain = audio.createGain();
@@ -22,31 +37,28 @@ function playBeep(freq = 440, duration = 0.08, type="square", volume=0.15) {
     osc.stop(audio.currentTime + duration);
 }
 
-// SOUND EFFECTS
 const SFX = {
-    move:   () => playBeep(300, 0.05, "square", 0.08),
-    rotate: () => playBeep(500, 0.06, "sawtooth", 0.1),
-    drop:   () => playBeep(120, 0.12, "square", 0.15),
-    clear:  () => playBeep(700, 0.25, "triangle", 0.25),
+    move:     () => playBeep(300, 0.05, "square", 0.08),
+    rotate:   () => playBeep(500, 0.06, "sawtooth", 0.1),
+    drop:     () => playBeep(120, 0.12, "square", 0.15),
+    clear:    () => playBeep(700, 0.25, "triangle", 0.25),
     gameover: () => playBeep(80, 0.6, "sine", 0.3),
 };
 
-// --- Canvas en grid ---
+// --- CANVAS ---
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 ctx.scale(20, 20);
 
-// Arena maken (12 breed, 20 hoog)
 const arena = createMatrix(12, 20);
 
-// Random kleuren
 const colors = [
   null,
   "#ff4b4b", "#4bff4b", "#4b4bff",
   "#ffff4b", "#4bffff", "#ff4bff", "#ffffff",
 ];
 
-// --- PIECES ---
+// --- TETRIS PIECES ---
 function createPiece(type) {
   if (type === "T") return [[0,1,0],[1,1,1],[0,0,0]];
   if (type === "O") return [[1,1],[1,1]];
@@ -57,18 +69,18 @@ function createPiece(type) {
   if (type === "Z") return [[1,1,0],[0,1,1],[0,0,0]];
 }
 
-function createMatrix(w, h) {
-  const m = [];
-  while (h--) m.push(new Array(w).fill(0));
+function createMatrix(w,h){
+  const m=[];
+  while(h--)m.push(new Array(w).fill(0));
   return m;
 }
 
-function collide(arena, player) {
-  const [m,o] = [player.matrix, player.pos];
-  for (let y=0; y<m.length; y++) {
-    for (let x=0; x<m[y].length; x++) {
-      if (m[y][x] !== 0 &&
-          (arena[y+o.y] && arena[y+o.y][x+o.x]) !== 0) {
+function collide(arena,player){
+  const [m,o]=[player.matrix,player.pos];
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<m[y].length;x++){
+      if(m[y][x]!==0 &&
+        (arena[y+o.y] && arena[y+o.y][x+o.x]) !== 0){
         return true;
       }
     }
@@ -76,103 +88,109 @@ function collide(arena, player) {
   return false;
 }
 
-function merge(arena, player) {
+function merge(arena,player){
   player.matrix.forEach((row,y)=>{
     row.forEach((v,x)=>{
-      if (v !== 0) arena[y+player.pos.y][x+player.pos.x] = player.color;
+      if(v!==0) arena[y+player.pos.y][x+player.pos.x]=player.color;
     });
   });
 }
 
-function draw() {
-  ctx.fillStyle = "#000";
+function draw(){
+  ctx.fillStyle="#000";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // arena tekenen
   arena.forEach((row,y)=>{
     row.forEach((v,x)=>{
-      if (v !== 0) {
-        ctx.fillStyle = colors[v];
-        ctx.fillRect(x, y, 1, 1);
+      if(v!==0){
+        ctx.fillStyle=colors[v];
+        ctx.fillRect(x,y,1,1);
       }
     });
   });
 
-  // speler tekenen
-  drawMatrix(player.matrix, player.pos, colors[player.color]);
+  drawMatrix(player.matrix,player.pos,colors[player.color]);
 }
 
-function drawMatrix(matrix, offset, colorOverride) {
+function drawMatrix(matrix,offset,colorOverride){
   matrix.forEach((row,y)=>{
     row.forEach((v,x)=>{
-      if (v !== 0) {
-        ctx.fillStyle = colorOverride;
-        ctx.fillRect(x+offset.x, y+offset.y, 1, 1);
+      if(v!==0){
+        ctx.fillStyle=colorOverride;
+        ctx.fillRect(x+offset.x,y+offset.y,1,1);
       }
     });
   });
 }
 
-function rotate(matrix, dir) {
-  for (let y=0; y<matrix.length; y++) {
-    for (let x=0; x<y; x++) {
-      [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+function rotate(matrix,dir){
+  for(let y=0;y<matrix.length;y++){
+    for(let x=0;x<y;x++){
+      [matrix[x][y],matrix[y][x]]=[matrix[y][x],matrix[x][y]];
     }
   }
-  if (dir > 0) matrix.forEach(r => r.reverse());
+  if(dir>0)matrix.forEach(r=>r.reverse());
   else matrix.reverse();
 }
 
-function playerReset() {
-  const pieces = "TJLOSZI";
-  player.matrix = createPiece(pieces[Math.floor(Math.random()*7)]);
-  player.color = Math.floor(Math.random()*7) + 1;
-  player.pos.y = 0;
-  player.pos.x = (arena[0].length/2|0) - (player.matrix[0].length/2|0);
+function playerReset(){
+  const pieces="TJLOSZI";
+  player.matrix=createPiece(pieces[Math.floor(Math.random()*7)]);
+  player.color=Math.floor(Math.random()*7)+1;
+  player.pos.y=0;
+  player.pos.x=(arena[0].length/2|0)-(player.matrix[0].length/2|0);
 
-  if (collide(arena, player)) {
-    arena.forEach(row=>row.fill(0));
+  if(collide(arena,player)){
+    arena.forEach(r=>r.fill(0));
+    score = 0;
+    updateScore();
     SFX.gameover();
   }
 }
 
-function arenaSweep() {
-  let cleared = 0;
-  for (let y=arena.length-1; y>=0; y--) {
-    if (arena[y].every(v=>v!==0)) {
+function arenaSweep(){
+  let cleared=0;
+
+  for(let y=arena.length-1;y>=0;y--){
+    if(arena[y].every(v=>v!==0)){
       arena.splice(y,1);
       arena.unshift(new Array(12).fill(0));
       cleared++;
       y++;
     }
   }
-  if (cleared > 0) SFX.clear();
+
+  if(cleared>0){
+    score += cleared * 100;  // ⭐ SCORE TOEVOEGING
+    updateScore();
+    SFX.clear();
+  }
 }
 
-let dropCounter = 0;
-let lastTime = 0;
+let dropCounter=0;
+let lastTime=0;
 
-const player = {
+const player={
   pos:{x:5,y:0},
   matrix:null,
   color:1,
 };
 
-function update(t=0) {
-  const dt = t - lastTime;
-  lastTime = t;
-  dropCounter += dt;
+function update(t=0){
+  const dt=t-lastTime;
+  lastTime=t;
+  dropCounter+=dt;
 
-  if (dropCounter > 500) {
+  if(dropCounter>500){
     player.pos.y++;
-    if (collide(arena,player)) {
+    if(collide(arena,player)){
       player.pos.y--;
       merge(arena,player);
       SFX.drop();
       arenaSweep();
       playerReset();
     }
-    dropCounter = 0;
+    dropCounter=0;
   }
 
   draw();
@@ -180,32 +198,37 @@ function update(t=0) {
 }
 
 // --- INPUT ---
-document.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft") {
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft"){
     player.pos.x--;
-    if (collide(arena,player)) player.pos.x++;
+    if(collide(arena,player))player.pos.x++;
     else SFX.move();
   }
-  if (e.key === "ArrowRight") {
+  if(e.key==="ArrowRight"){
     player.pos.x++;
-    if (collide(arena,player)) player.pos.x--;
+    if(collide(arena,player))player.pos.x--;
     else SFX.move();
   }
-  if (e.key === "ArrowDown") {
+  if(e.key==="ArrowDown"){
     player.pos.y++;
-    if (collide(arena,player)) player.pos.y--;
-    else SFX.move();
+    if(collide(arena,player))player.pos.y--;
+    else {
+      SFX.move();
+      score += 1;   // ⭐ BONUS SCORE VOOR SNEL DROPPEN
+      updateScore();
+    }
   }
-  if (e.key === "ArrowUp") {
-    const old = JSON.parse(JSON.stringify(player.matrix));
-    rotate(player.matrix, 1);
-    if (collide(arena,player)) player.matrix = old;
+  if(e.key==="ArrowUp"){
+    const old=JSON.parse(JSON.stringify(player.matrix));
+    rotate(player.matrix,1);
+    if(collide(arena,player))player.matrix=old;
     else SFX.rotate();
   }
 });
 
 playerReset();
 update();
+updateScore();
 </script>
 </body>
 </html>
