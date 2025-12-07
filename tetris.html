@@ -2,25 +2,35 @@
 <html>
 <body style="background:#111; display:flex; flex-direction:column; align-items:center;">
 
-<!-- SCORE -->
-<div id="score" style="
-    color:white;
-    font-family:Arial;
-    font-size:32px;
-    margin:10px;
-">Score: 0</div>
+<!-- SCORES -->
+<div style="color:white; font-family:Arial; font-size:28px; margin:10px;">
+    <div id="score">Score: 0</div>
+    <div id="topscore">Topscore: 0</div>
+</div>
 
 <!-- SPEL -->
 <canvas id="game" width="240" height="400"></canvas>
 
 <script>
-// --- SCORE ---
+// ---------------- SCORE ----------------
 let score = 0;
-function updateScore() {
+let topscore = parseInt(localStorage.getItem("tetris_topscore") || "0");
+
+function updateScoreDisplay() {
     document.getElementById("score").innerText = "Score: " + score;
+    document.getElementById("topscore").innerText = "Topscore: " + topscore;
 }
 
-// --- GELUID ---
+function addScore(rows) {
+    score += rows * 100;
+    if (score > topscore) {
+        topscore = score;
+        localStorage.setItem("tetris_topscore", topscore);
+    }
+    updateScoreDisplay();
+}
+
+// ---------------- GELUID ----------------
 const audio = new (window.AudioContext || window.webkitAudioContext)();
 
 function playBeep(freq = 440, duration = 0.08, type="square", volume=0.15) {
@@ -28,24 +38,22 @@ function playBeep(freq = 440, duration = 0.08, type="square", volume=0.15) {
     const gain = audio.createGain();
     osc.type = type;
     osc.frequency.value = freq;
-
     gain.gain.value = volume;
     osc.connect(gain);
     gain.connect(audio.destination);
-
     osc.start();
     osc.stop(audio.currentTime + duration);
 }
 
 const SFX = {
-    move:     () => playBeep(300, 0.05, "square", 0.08),
-    rotate:   () => playBeep(500, 0.06, "sawtooth", 0.1),
-    drop:     () => playBeep(120, 0.12, "square", 0.15),
-    clear:    () => playBeep(700, 0.25, "triangle", 0.25),
+    move: () => playBeep(300, 0.05, "square", 0.08),
+    rotate: () => playBeep(500, 0.06, "sawtooth", 0.1),
+    drop: () => playBeep(120, 0.12, "square", 0.15),
+    clear: () => playBeep(700, 0.25, "triangle", 0.25),
     gameover: () => playBeep(80, 0.6, "sine", 0.3),
 };
 
-// --- CANVAS ---
+// ---------------- CANVAS ----------------
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 ctx.scale(20, 20);
@@ -58,7 +66,7 @@ const colors = [
   "#ffff4b", "#4bffff", "#ff4bff", "#ffffff",
 ];
 
-// --- TETRIS PIECES ---
+// ---------------- PIECES ----------------
 function createPiece(type) {
   if (type === "T") return [[0,1,0],[1,1,1],[0,0,0]];
   if (type === "O") return [[1,1],[1,1]];
@@ -70,9 +78,8 @@ function createPiece(type) {
 }
 
 function createMatrix(w,h){
-  const m=[];
-  while(h--)m.push(new Array(w).fill(0));
-  return m;
+    const m=[]; while(h--) m.push(new Array(w).fill(0));
+    return m;
 }
 
 function collide(arena,player){
@@ -112,11 +119,11 @@ function draw(){
   drawMatrix(player.matrix,player.pos,colors[player.color]);
 }
 
-function drawMatrix(matrix,offset,colorOverride){
+function drawMatrix(matrix,offset,color){
   matrix.forEach((row,y)=>{
     row.forEach((v,x)=>{
       if(v!==0){
-        ctx.fillStyle=colorOverride;
+        ctx.fillStyle=color;
         ctx.fillRect(x+offset.x,y+offset.y,1,1);
       }
     });
@@ -137,32 +144,31 @@ function playerReset(){
   const pieces="TJLOSZI";
   player.matrix=createPiece(pieces[Math.floor(Math.random()*7)]);
   player.color=Math.floor(Math.random()*7)+1;
+
   player.pos.y=0;
   player.pos.x=(arena[0].length/2|0)-(player.matrix[0].length/2|0);
 
   if(collide(arena,player)){
-    arena.forEach(r=>r.fill(0));
-    score = 0;
-    updateScore();
+    arena.forEach(row=>row.fill(0));
     SFX.gameover();
+    score = 0;
+    updateScoreDisplay();
   }
 }
 
 function arenaSweep(){
-  let cleared=0;
+  let rows = 0;
 
   for(let y=arena.length-1;y>=0;y--){
     if(arena[y].every(v=>v!==0)){
       arena.splice(y,1);
       arena.unshift(new Array(12).fill(0));
-      cleared++;
+      rows++;
       y++;
     }
   }
-
-  if(cleared>0){
-    score += cleared * 100;  // ⭐ SCORE TOEVOEGING
-    updateScore();
+  if(rows>0){
+    addScore(rows);   // ⭐ SCORE ENKEL VOOR GECLEARED RIJEN
     SFX.clear();
   }
 }
@@ -177,8 +183,7 @@ const player={
 };
 
 function update(t=0){
-  const dt=t-lastTime;
-  lastTime=t;
+  const dt=t-lastTime; lastTime=t;
   dropCounter+=dt;
 
   if(dropCounter>500){
@@ -197,7 +202,7 @@ function update(t=0){
   requestAnimationFrame(update);
 }
 
-// --- INPUT ---
+// ---------------- INPUT ----------------
 document.addEventListener("keydown",e=>{
   if(e.key==="ArrowLeft"){
     player.pos.x--;
@@ -212,11 +217,7 @@ document.addEventListener("keydown",e=>{
   if(e.key==="ArrowDown"){
     player.pos.y++;
     if(collide(arena,player))player.pos.y--;
-    else {
-      SFX.move();
-      score += 1;   // ⭐ BONUS SCORE VOOR SNEL DROPPEN
-      updateScore();
-    }
+    else SFX.move();
   }
   if(e.key==="ArrowUp"){
     const old=JSON.parse(JSON.stringify(player.matrix));
@@ -228,7 +229,7 @@ document.addEventListener("keydown",e=>{
 
 playerReset();
 update();
-updateScore();
+updateScoreDisplay();
 </script>
 </body>
 </html>
